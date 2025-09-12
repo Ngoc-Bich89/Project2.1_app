@@ -3,8 +3,6 @@ import pandas as pd
 import joblib
 import os
 from gensim import corpora, models, similarities
-from pyspark.sql import SparkSession
-from pyspark.ml.recommendation import ALSModel
 from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -390,7 +388,7 @@ menu = st.sidebar.radio(
 # Load data & models
 hotel_info, hotel_comments, hotel_corpus_cosine= load_data()
 vectorizer, tfidf_matrix, dictionary, tfidf_gensim, als_model, corpus_gensim,similarity_index, cosine_similarity_matrix = load_models()
-hotel_info_pyspark = spark.read.parquet(os.path.join(BASE_DIR, "data_clean", "hotel_info_pyspark.parquet"))
+hotel_info_pyspark = pd.read_parquet(os.path.join(BASE_DIR, "data_clean", "hotel_info_pyspark.parquet"))
 
 # --------------------------
 # BUSINESS PROBLEM
