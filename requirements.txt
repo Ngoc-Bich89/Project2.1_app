@@ -1,6 +1,7 @@
 streamlit
-numpy
 pandas
+numpy
+gensim
+scikit-learn
 matplotlib
 seaborn
-scikit-learn
