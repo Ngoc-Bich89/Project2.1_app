@@ -1,6 +1,6 @@
 streamlit
-pyspark
 gensim==4.3.2
+Cython==0.29.41
 wordcloud
 plotly
 pandas
@@ -9,4 +9,3 @@ scikit-learn
 matplotlib
 seaborn
 smart_open==7.0.5
-Cython
