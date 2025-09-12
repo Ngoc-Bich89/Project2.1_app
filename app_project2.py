@@ -7,8 +7,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
 import seaborn as sns
 from wordcloud import WordCloud
-from pyspark.sql import functions as F
-from pyspark.sql.functions import col
 import numpy as np
 import pickle
 import plotly.express as px
@@ -357,22 +355,25 @@ def get_topk_recommendations(hotel_corpus2, matches, corpus_gensim, tfidf, simil
     return df
 
 # ALS
-def recommend_hotels_by_ALS(als_model, hotel_info_pyspark, nationality_id, top_k=10):
-    # Lấy danh sách khách sạn (distinct)
-    hotels_df = hotel_info_pyspark.select( "Hotel_ID", "Hotel_Name", "Hotel_Address", "hotel_numeric_id").distinct()
+def recommend_hotels_by_ALS_pandas(als_model, hotel_info_df, nationality_id, top_k=10):
+   # Lấy danh sách hotel_numeric_id
+    hotel_ids = hotel_info_df['hotel_numeric_id'].values
     
-    # Gắn user_id vào để predict
-    user_df = hotels_df.withColumn("nationality_id", F.lit(nationality_id))
+    # Dự đoán rating cho user
+    preds = []
+    for hid in hotel_ids:
+        try:
+            rating = als_model.predict(nationality_id, hid)
+        except:
+            rating = 0  # nếu không dự đoán được
+        preds.append(rating)
     
-    # Dự đoán bằng ALS
-    predictions = als_model.transform(user_df)
+    # Thêm vào DataFrame
+    hotel_info_df['prediction'] = preds
     
-    # Lọc prediction != null, lấy top-k
-    result = predictions.filter(col("prediction").isNotNull()) \
-                        .orderBy(col("prediction").desc()) \
-                        .limit(top_k)
-    
-    return result.select("Hotel_Name", "Hotel_Address", "prediction")
+    # Lấy top-k
+    top_hotels = hotel_info_df.sort_values('prediction', ascending=False).head(top_k)  
+    return top_hotels[['Hotel_Name', 'Hotel_Address', 'prediction']]
 
 # ==========================
 # STREAMLIT APP
