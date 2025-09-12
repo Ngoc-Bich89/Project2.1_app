@@ -1,6 +1,6 @@
 streamlit
 gensim==4.3.2
-Cython==0.29.41
+Cython>=3.0.0
 wordcloud
 plotly
 pandas
