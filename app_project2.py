@@ -3,10 +3,14 @@ import pandas as pd
 import joblib
 import os
 from gensim import corpora, models, similarities
+from pyspark.sql import SparkSession
+from pyspark.ml.recommendation import ALSModel
 from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
 import seaborn as sns
 from wordcloud import WordCloud
+from pyspark.sql import functions as F
+from pyspark.sql.functions import col
 import numpy as np
 import pickle
 import plotly.express as px
@@ -355,25 +359,22 @@ def get_topk_recommendations(hotel_corpus2, matches, corpus_gensim, tfidf, simil
     return df
 
 # ALS
-def recommend_hotels_by_ALS_pandas(als_model, hotel_info_df, nationality_id, top_k=10):
-   # Lấy danh sách hotel_numeric_id
-    hotel_ids = hotel_info_df['hotel_numeric_id'].values
+def recommend_hotels_by_ALS(als_model, hotel_info_pyspark, nationality_id, top_k=10):
+    # Lấy danh sách khách sạn (distinct)
+    hotels_df = hotel_info_pyspark.select( "Hotel_ID", "Hotel_Name", "Hotel_Address", "hotel_numeric_id").distinct()
     
-    # Dự đoán rating cho user
-    preds = []
-    for hid in hotel_ids:
-        try:
-            rating = als_model.predict(nationality_id, hid)
-        except:
-            rating = 0  # nếu không dự đoán được
-        preds.append(rating)
+    # Gắn user_id vào để predict
+    user_df = hotels_df.withColumn("nationality_id", F.lit(nationality_id))
     
-    # Thêm vào DataFrame
-    hotel_info_df['prediction'] = preds
+    # Dự đoán bằng ALS
+    predictions = als_model.transform(user_df)
     
-    # Lấy top-k
-    top_hotels = hotel_info_df.sort_values('prediction', ascending=False).head(top_k)  
-    return top_hotels[['Hotel_Name', 'Hotel_Address', 'prediction']]
+    # Lọc prediction != null, lấy top-k
+    result = predictions.filter(col("prediction").isNotNull()) \
+                        .orderBy(col("prediction").desc()) \
+                        .limit(top_k)
+    
+    return result.select("Hotel_Name", "Hotel_Address", "prediction")
 
 # ==========================
 # STREAMLIT APP
@@ -389,7 +390,7 @@ menu = st.sidebar.radio(
 # Load data & models
 hotel_info, hotel_comments, hotel_corpus_cosine= load_data()
 vectorizer, tfidf_matrix, dictionary, tfidf_gensim, als_model, corpus_gensim,similarity_index, cosine_similarity_matrix = load_models()
-hotel_info_pyspark = pd.read_parquet(os.path.join(BASE_DIR, "data_clean", "hotel_info_pyspark.parquet"))
+hotel_info_pyspark = spark.read.parquet(os.path.join(BASE_DIR, "data_clean", "hotel_info_pyspark.parquet"))
 
 # --------------------------
 # BUSINESS PROBLEM
