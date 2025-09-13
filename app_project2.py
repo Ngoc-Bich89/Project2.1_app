@@ -17,16 +17,6 @@ import plotly.express as px
 import java_bootstrap
 java_bootstrap.ensure_java()
 
-# Đặt JAVA_HOME thủ công trước khi import pyspark
-try:
-    java_real_path = subprocess.check_output(
-        ["readlink", "-f", "/usr/bin/java"]
-    ).decode().strip()
-    java_home = "/".join(java_real_path.split("/")[:-2])
-    os.environ["JAVA_HOME"] = java_home
-    print(f"✅ JAVA_HOME set to: {java_home}")
-except Exception as e:
-    print("❌ Could not set JAVA_HOME:", e)
 # ==========================
 # INIT SPARK
 # ==========================
