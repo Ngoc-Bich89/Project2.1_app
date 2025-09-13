@@ -21,10 +21,14 @@ java_bootstrap.ensure_java()
 # ==========================
 @st.cache_resource
 def init_spark():
-    return SparkSession.builder.appName("TestApp").getOrCreate()
+    spark = SparkSession.builder \
+        .appName("HotelRec") \
+        .config("spark.driver.bindAddress", "127.0.0.1") \
+        .config("spark.driver.host", "127.0.0.1") \
+        .getOrCreate()
+    return spark
 
 spark = init_spark()
-print("✅ Spark session created!")
 
 # ==========================
 # LOAD DATA & MODELS
@@ -52,7 +56,7 @@ def load_models():
     tfidf_gensim = models.TfidfModel.load("models/tfidf_gensim.model")
     similarity_index = similarities.Similarity.load("models/similarity_index.index")
     # ALS
-    als_model = ALSModel.load(r"D:/7 KHOA/DL07/Project3/models/als_model") 
+    als_model = ALSModel.load(r"./models/als_model") 
     return vectorizer, tfidf_matrix, dictionary, tfidf_gensim, als_model, corpus_gensim,similarity_index, cosine_similarity_matrix
 
 # ==========================
