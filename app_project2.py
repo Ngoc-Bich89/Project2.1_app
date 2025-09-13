@@ -12,7 +12,6 @@ from wordcloud import WordCloud
 from pyspark.sql import functions as F
 from pyspark.sql.functions import col
 import numpy as np
-import pickle
 import plotly.express as px
 import java_bootstrap
 java_bootstrap.ensure_java()
