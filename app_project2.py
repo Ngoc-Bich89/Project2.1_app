@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import joblib
-import os
+import os, subprocess
 from gensim import corpora, models, similarities
 from pyspark.sql import SparkSession
 from pyspark.ml.recommendation import ALSModel
