@@ -14,24 +14,19 @@ from pyspark.sql.functions import col
 import numpy as np
 import pickle
 import plotly.express as px
+import java_bootstrap
+java_bootstrap.ensure_java()
 
 # ==========================
 # INIT SPARK
 # ==========================
 @st.cache_resource
-def init_spark():
-    # Nếu cần, set thủ công (nếu chưa set env ngoài hệ thống)
-    os.environ["JAVA_HOME"] = r"C:\Program Files\Java\jdk-11"
-    os.environ["SPARK_HOME"] = r"C:\spark\spark-3.5.1-bin-hadoop3"
-
-    spark = SparkSession.builder \
-        .appName("HotelRec") \
-        .config("spark.driver.bindAddress", "127.0.0.1") \
-        .config("spark.driver.host", "127.0.0.1") \
+def get_spark():
+    return SparkSession.builder \
+        .appName("MySparkApp") \
         .getOrCreate()
-    return spark
 
-spark = init_spark()
+spark = get_spark()
 
 # ==========================
 # LOAD DATA & MODELS
