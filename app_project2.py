@@ -31,10 +31,10 @@ except Exception as e:
 # INIT SPARK
 # ==========================
 @st.cache_resource
-spark = SparkSession.builder \
-    .appName("TestApp") \
-    .getOrCreate()
+def init_spark():
+    return SparkSession.builder.appName("TestApp").getOrCreate()
 
+spark = init_spark()
 print("✅ Spark session created!")
 
 # ==========================
