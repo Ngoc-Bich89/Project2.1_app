@@ -12,3 +12,6 @@ seaborn
 smart_open==7.0.5
 scipy==1.11.1
 pyspark
+joblib
+pickle5
+java-bootstrap
