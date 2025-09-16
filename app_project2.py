@@ -14,19 +14,6 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
-# ==========================
-# INIT SPARK
-# ==========================
-@st.cache_resource
-def init_spark():
-    spark = SparkSession.builder \
-        .appName("HotelRec") \
-        .config("spark.driver.bindAddress", "127.0.0.1") \
-        .config("spark.driver.host", "127.0.0.1") \
-        .getOrCreate()
-    return spark
-
-spark = init_spark()
 
 # ==========================
 # LOAD DATA & MODELS
