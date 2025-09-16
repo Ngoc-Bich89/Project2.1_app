@@ -2,19 +2,17 @@ import streamlit as st
 import pandas as pd
 import joblib
 import os, subprocess
-from gensim import corpora, models, similarities
-from pyspark.sql import SparkSession
-from pyspark.ml.recommendation import ALSModel
 from sklearn.metrics.pairwise import cosine_similarity
 import matplotlib.pyplot as plt
 import seaborn as sns
 from wordcloud import WordCloud
-from pyspark.sql import functions as F
-from pyspark.sql.functions import col
 import numpy as np
 import plotly.express as px
-import java_bootstrap
-java_bootstrap.ensure_java()
+from streamlit_option_menu import option_menu
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib import colors
 
 # ==========================
 # INIT SPARK
@@ -323,137 +321,105 @@ def recommend_hotels_by_keyword(hotel_corpus, cosine_similarity_matrix, keyword,
     df = df.drop_duplicates(subset=["Recommended_Hotel_ID"], keep="first")
     df = df.head(top_k)
     return df.reset_index(drop=True)
+# ===============================
+# FINAL REPORT
+def generate_pdf_report(df, filename="Final_Report.pdf"):
+    doc = SimpleDocTemplate(filename, pagesize=A4)
+    styles = getSampleStyleSheet()
+    elements = []
 
-# gensim
-def find_hotels_by_keyword(hotel_corpus2, keyword):
-    matches = hotel_corpus2[hotel_corpus2["Hotel_Name"].str.contains(keyword, case=False, na=False)]
-    if matches.empty:
-        print(f"❌ Không tìm thấy khách sạn nào chứa từ khóa '{keyword}'")
-        return pd.DataFrame()
-    return matches
-def get_topk_recommendations(hotel_corpus2, matches, corpus_gensim, tfidf, similarity_index, top_k=5):
-    results = []
-    for _, row in matches.iterrows():
-        corpus_pos = row.name
-        query_bow = corpus_gensim[corpus_pos]
-        sims = similarity_index[tfidf[query_bow]]
-        # Sắp xếp similarity, loại chính nó
-        sims_sorted = sorted(list(enumerate(sims)), key=lambda x: -x[1])
-        topk = [(i, score) for i, score in sims_sorted if i != corpus_pos][:top_k]
-        for i, score in topk:
-            # Lấy thông tin khách sạn recommended
-            hotel_info = hotel_corpus2.iloc[i]
-            results.append({
-                "Source_Hotel": row["Hotel_Name"],
-                "Recommended_Hotel": hotel_info["Hotel_Name"],
-                "Address": hotel_info.get("Hotel_Address", ""),
-                "Description": hotel_info.get("Hotel_Description", ""),
-                "Score": score
-            })
-    return pd.DataFrame(results)
-    if not df.empty:
-        df = df.sort_values("Score", ascending=False).reset_index(drop=True)
-    return df
+    # Title
+    elements.append(Paragraph("🏨 Hotel Recommendation System - Final Report", styles['Title']))
+    elements.append(Spacer(1, 20))
 
-# ALS
-def recommend_hotels_by_ALS(als_model, hotel_info_pyspark, nationality_id, top_k=10):
-    # Lấy danh sách khách sạn (distinct)
-    hotels_df = hotel_info_pyspark.select( "Hotel_ID", "Hotel_Name", "Hotel_Address", "hotel_numeric_id").distinct()
-    
-    # Gắn user_id vào để predict
-    user_df = hotels_df.withColumn("nationality_id", F.lit(nationality_id))
-    
-    # Dự đoán bằng ALS
-    predictions = als_model.transform(user_df)
-    
-    # Lọc prediction != null, lấy top-k
-    result = predictions.filter(col("prediction").isNotNull()) \
-                        .orderBy(col("prediction").desc()) \
-                        .limit(top_k)
-    
-    return result.select("Hotel_Name", "Hotel_Address", "prediction")
+    # Summary
+    elements.append(Paragraph("📊 Dataset Summary", styles['Heading2']))
+    elements.append(Paragraph(f"• Tổng số đánh giá: {len(df)}", styles['Normal']))
+    elements.append(Paragraph(f"• Số khách sạn duy nhất: {df['Hotel_Name'].nunique()}", styles['Normal']))
+    elements.append(Paragraph(f"• Trung bình điểm số: {df['Score'].mean():.2f}", styles['Normal']))
+    elements.append(Spacer(1, 15))
+
+    # Basic Stats Table
+    desc = df[['Score','Total_Score','Location','Cleanliness','Service','Facilities',
+               'Value_for_money','Comfort_and_room_quality']].describe().round(2)
+
+    table_data = [desc.columns.tolist()] + desc.reset_index().values.tolist()
+    table = Table(table_data)
+    table.setStyle(TableStyle([
+        ('BACKGROUND',(0,0),(-1,0),colors.lightblue),
+        ('TEXTCOLOR',(0,0),(-1,0),colors.black),
+        ('ALIGN',(0,0),(-1,-1),'CENTER'),
+        ('FONTNAME',(0,0),(-1,0),'Helvetica-Bold'),
+        ('GRID',(0,0),(-1,-1),0.5,colors.grey),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 20))
+
+    # Conclusion
+    elements.append(Paragraph("✅ Kết luận", styles['Heading2']))
+    elements.append(Paragraph(
+        "Hệ thống gợi ý khách sạn đã phân tích dữ liệu đánh giá từ khách hàng "
+        "để cung cấp các gợi ý phù hợp. Báo cáo này tóm tắt đặc điểm dữ liệu, "
+        "đưa ra thống kê mô tả và làm cơ sở cho các phân tích, trực quan hóa "
+        "và mô hình gợi ý sau này.", styles['Normal']
+    ))
+
+    doc.build(elements)
+    return filename
 
 # ==========================
 # STREAMLIT APP
 # ==========================
 st.set_page_config(page_title="Hotel Recommendation System", layout="wide")
 
-# Sidebar menu
-menu = st.sidebar.radio(
-    "Menu",
-    ["Business Problem", "Evaluation & Report", "New Prediction/Analysis/Recommendation","Business Insight", "Team Info"]
+# Horizontal menu bar
+menu = option_menu(
+    menu_title=None,  # không hiển thị tiêu đề
+    options=["Business Problem", "Evaluation & Report", "New Prediction", "Business Insight","Final Report", "Team Info"],
+    icons=["house", "bar-chart", "search", "lightbulb", "people", "file-earmark-text"],
+    menu_icon="cast",
+    default_index=0,
+    orientation="horizontal",  # menu nằm ngang
 )
-
 # Load data & models
 hotel_info, hotel_comments, hotel_corpus_cosine= load_data()
-vectorizer, tfidf_matrix, dictionary, tfidf_gensim, als_model, corpus_gensim,similarity_index, cosine_similarity_matrix = load_models()
+vectorizer, tfidf_matrix,cosine_similarity_matrix = load_models()
 hotel_info_pyspark = spark.read.parquet(os.path.join(BASE_DIR, "data_clean", "hotel_info_pyspark.parquet"))
 
 # --------------------------
 # BUSINESS PROBLEM
 # --------------------------
 if menu == "Business Problem":
-    st.title("🏨 Business Problem")
+    st.title("🏨 Hotel Recommendation System")
     st.write("""
-    Hệ thống gợi ý khách sạn dựa trên dữ liệu đánh giá của khách hàng.
-    
-    - **Content-based Filtering**: TF-IDF + Cosine Similarity (sklearn, Gensim)  
-    - **Collaborative Filtering**: ALS (Spark ML)  
-    - **Hybrid Model**: Kết hợp thông tin khách sạn và phản hồi của khách  
+    Ứng dụng này xây dựng hệ thống **gợi ý khách sạn** thông minh dựa trên dữ liệu đánh giá và mô tả khách sạn.  
+    Mục tiêu là giúp khách du lịch tìm được khách sạn phù hợp nhanh chóng, đồng thời hỗ trợ doanh nghiệp nâng cao trải nghiệm khách hàng.  
+
+    🔎 **Các phương pháp sử dụng**:
+    - **Content-based Filtering**: Phân tích nội dung (TF-IDF + Cosine Similarity) để tìm khách sạn có đặc điểm tương tự.
+    - **Hybrid Model**: Kết hợp thông tin khách sạn với phản hồi của khách hàng nhằm cải thiện chất lượng gợi ý.  
+
+    💡 Với hệ thống này, người dùng có thể:
+    - Tìm khách sạn theo từ khóa (ví dụ: "Da Nang", "Beach", "Resort").
+    - So sánh các khách sạn theo nhiều tiêu chí.
+    - Khai thác dữ liệu để hiểu rõ xu hướng và nhu cầu của khách hàng.
     """)
-
-# --------------------------
-# EVALUATION & REPORT
-# --------------------------
-elif menu == "Evaluation & Report":
-    st.title("📊 Evaluation & Report")
-    st.write("So sánh RMSE giữa ALS và Content-based filtering:")
-
-    # Demo số liệu RMSE
-    rmse_als = 0.97
-    rmse_content = 0.92
-
-    st.metric("RMSE ALS", rmse_als)
-    st.metric("RMSE Content-based", rmse_content)
-
-    sns.set_style("whitegrid")
-    fig, ax = plt.subplots()
-    sns.barplot(x=["ALS", "Content-based"], y=[rmse_als, rmse_content], ax=ax)
-    ax.set_title("So sánh RMSE")
-    st.pyplot(fig)
 
 # --------------------------
 # NEW PREDICTION / RECOMMENDATION
 # --------------------------
-elif menu == "New Prediction/Analysis/Recommendation":
-    st.title("🔮 New Prediction / Analysis / Recommendation")
+elif menu == "New Prediction":
+    st.title("🔮 New Prediction")
 
-    option = st.selectbox("Chọn phương pháp:", ["Cosine TF-IDF", "Gensim", "ALS"])
+    option = st.selectbox("Chọn phương pháp:", ["Cosine TF-IDF"])
     
-    if option in ["Cosine TF-IDF", "Gensim"]:
+    if option in ["Cosine TF-IDF"]:
         keyword = st.text_input("Nhập từ khóa (VD: Nha Trang, Da Nang, Beach...)", "")
         if st.button("Tìm kiếm"):
-            if option == "Cosine TF-IDF":
-                results = recommend_hotels_by_keyword(hotel_corpus_cosine, cosine_similarity_matrix, keyword, top_k=10)
+            results = recommend_hotels_by_keyword(hotel_corpus_cosine, cosine_similarity_matrix, keyword, top_k=10)
+            if not results.empty:
                 st.dataframe(results)
-            elif option == "Gensim":
-                st.write("⚡ Gensim")
-                matches = find_hotels_by_keyword(hotel_corpus_cosine, keyword)
-                if not matches.empty:
-                    results = get_topk_recommendations(hotel_corpus_cosine,matches,corpus_gensim,tfidf_gensim,similarity_index,top_k=5)
-                    st.dataframe(results)
-                else:
-                    st.warning(f"❌ Không tìm thấy khách sạn nào chứa từ khóa '{keyword}'")
 
-    elif option == "ALS":
-        nationality_id = st.number_input("Nhập Nationality_ID:", min_value=1, step=1)
-        if st.button("Gợi ý khách sạn"):
-            results = recommend_hotels_by_ALS(
-                als_model, hotel_info_pyspark, nationality_id, top_k=10)
-            if results.head(1):  # head(1) trả về danh sách rỗng nếu trống
-                st.dataframe(results.toPandas())  # chuyển sang Pandas để hiển thị
-            else:
-                st.warning("Không tìm thấy gợi ý cho user này.")
 # --------------------------
 # BUSINESS INSIGHT
 # --------------------------
@@ -465,6 +431,19 @@ elif menu == "Business Insight":
     if st.button("Phân tích"):
         insights = business_insight(hotel_info, hotel_comments, keyword=keyword if keyword else None,
                                     hotel_id=int(hotel_id) if hotel_id else None)
+# --------------------------
+# FINAL REPORT
+# --------------------------
+if menu == "Final Report":
+    st.title("📑 Final Report")
+    if "df" in st.session_state:
+        if st.button("📑 Generate PDF Report"):
+            filename = generate_pdf_report(st.session_state["df"])
+            st.success(f"✅ Report generated: {filename}")
+            with open(filename, "rb") as f:
+                st.download_button("📥 Download Report", f, file_name=filename)
+    else:
+        st.warning("⚠️ Please upload data first.")
 # --------------------------
 # TEAM INFO
 # --------------------------
