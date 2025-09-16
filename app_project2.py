@@ -35,14 +35,8 @@ def load_models():
     vectorizer = joblib.load("models/tfidf_vectorizer.pkl")
     tfidf_matrix = joblib.load("models/tfidf_matrix.pkl")
     cosine_similarity_matrix = joblib.load("models/cosine_similarity.pkl")
-    # Gensim
-    dictionary = corpora.Dictionary.load("models/dictionary.dict")
-    corpus_gensim = list(corpora.MmCorpus("models/corpus_gensim.mm"))
-    tfidf_gensim = models.TfidfModel.load("models/tfidf_gensim.model")
-    similarity_index = similarities.Similarity.load("models/similarity_index.index")
-    # ALS
-    als_model = ALSModel.load(r"./models/als_model") 
-    return vectorizer, tfidf_matrix, dictionary, tfidf_gensim, als_model, corpus_gensim,similarity_index, cosine_similarity_matrix
+
+    return vectorizer, tfidf_matrix, cosine_similarity_matrix
 
 # ==========================
 # BUSINESS INSIGHT FUNCTIONS
@@ -358,11 +352,22 @@ def generate_pdf_report(df, filename="Final_Report.pdf"):
 # STREAMLIT APP
 # ==========================
 st.set_page_config(page_title="Hotel Recommendation System", layout="wide")
+# HEADER
+# ------------------------
+st.markdown(
+    """
+    <div style="background: linear-gradient(90deg, #4e73df, #1cc88a); padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px;">
+        <h1 style="color: white; font-size: 36px; margin: 0;">🏨 Hotel Recommendation System</h1>
+        <p style="color: #f8f9fc; font-size: 18px; margin-top: 5px;">Tìm kiếm, phân tích & gợi ý khách sạn thông minh</p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # Horizontal menu bar
 menu = option_menu(
     menu_title=None,  # không hiển thị tiêu đề
-    options=["Business Problem", "Evaluation & Report", "New Prediction", "Business Insight","Final Report", "Team Info"],
+    options=["Business Problem", "New Prediction", "Business Insight","Final Report", "Team Info"],
     icons=["house", "bar-chart", "search", "lightbulb", "people", "file-earmark-text"],
     menu_icon="cast",
     default_index=0,
@@ -371,7 +376,6 @@ menu = option_menu(
 # Load data & models
 hotel_info, hotel_comments, hotel_corpus_cosine= load_data()
 vectorizer, tfidf_matrix,cosine_similarity_matrix = load_models()
-hotel_info_pyspark = spark.read.parquet(os.path.join(BASE_DIR, "data_clean", "hotel_info_pyspark.parquet"))
 
 # --------------------------
 # BUSINESS PROBLEM
@@ -412,12 +416,32 @@ elif menu == "New Prediction":
 # --------------------------
 elif menu == "Business Insight":
     st.title("📈 Business Insight")
-    keyword = st.text_input("Nhập tên khách sạn hoặc từ khóa:")
-    hotel_id = st.text_input("Hoặc nhập Hotel_ID:")
+
+    # Dropdown chọn khách sạn
+    hotel_options = sorted(hotel_info["Hotel_Name"].unique())
+    selected_hotel = st.selectbox("🏨 Chọn khách sạn:", [""] + hotel_options)
+
+    # Hoặc nhập keyword / Hotel_ID
+    keyword = st.text_input("🔎 Nhập từ khóa (VD: Da Nang, Beach...):")
 
     if st.button("Phân tích"):
-        insights = business_insight(hotel_info, hotel_comments, keyword=keyword if keyword else None,
-                                    hotel_id=int(hotel_id) if hotel_id else None)
+        if selected_hotel:
+            insights = business_insight(
+                hotel_info, hotel_comments,
+                keyword=selected_hotel
+            )
+        elif keyword:
+            insights = business_insight(
+                hotel_info, hotel_comments,
+                keyword=keyword
+            )
+        elif hotel_id:
+            insights = business_insight(
+                hotel_info, hotel_comments,
+                hotel_id=int(hotel_id)
+            )
+        else:
+            st.warning("⚠️ Vui lòng chọn khách sạn, nhập keyword hoặc Hotel_ID.")
 # --------------------------
 # FINAL REPORT
 # --------------------------
